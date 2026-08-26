@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tiny Swords — Free Pack Mosaic</title>
+<style>
+  :root {
+    --bg-color: #171a21;
+    --card-bg: #232833;
+    --text-color: #e8e8e8;
+    --accent: #4a5366;
+  }
+
+  body {
+    margin: 0;
+    padding: 30px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-family: system-ui, sans-serif;
+  }
+
+  h1 { text-align: center; margin: 0 0 8px; font-weight: 300; }
+  .tagline { text-align: center; color: #9aa3b2; font-size: 13px; margin-bottom: 8px; }
+
+  .controls {
+    display: flex;
+    gap: 22px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 30px;
+    font-size: 13px;
+  }
+  .controls label { display: flex; align-items: center; gap: 6px; }
+  .controls input[type="range"] { width: 140px; }
+  .controls span { min-width: 40px; color: #9aa3b2; }
+  .hint { color: #6b7a93; }
+
+  .group-section { margin-bottom: 50px; }
+  .group-title {
+    font-size: 22px;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+    color: #9aa3b2;
+  }
+
+  .mosaic-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+  }
+
+  .anim-card {
+    background: var(--card-bg);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: zoom-in;
+    transition: transform 0.15s, border-color 0.15s;
+  }
+  .anim-card:hover { transform: translateY(-3px); border-color: #6b7a93; }
+
+  .sprite-container {
+    width: 192px;
+    height: 192px;
+    margin-bottom: 10px;
+    image-rendering: pixelated;
+    background-repeat: no-repeat;
+    background-position: 0 0;
+  }
+
+  .label { font-size: 12px; color: #9aa3b2; text-align: center; }
+  .label strong { color: var(--text-color); display: block; margin-bottom: 2px; }
+
+  .modal {
+    position: fixed; inset: 0; background: rgba(10,12,16,0.85);
+    display: none; align-items: center; justify-content: center; z-index: 10;
+  }
+  .modal.open { display: flex; }
+  .modal-box {
+    background: var(--card-bg); border: 1px solid var(--accent);
+    border-radius: 10px; padding: 24px; text-align: center; max-width: 90vw;
+  }
+  .modal-box .label { margin-bottom: 16px; }
+  .modal-stage {
+    image-rendering: pixelated; background-repeat: no-repeat;
+    background-position: 0 0; margin: 0 auto 16px; cursor: pointer;
+  }
+  .modal-actions button {
+    background: #39404f; color: inherit; border: 1px solid #4a5366;
+    border-radius: 6px; padding: 6px 16px; cursor: pointer; font-size: 13px; margin: 0 4px;
+  }
+  .modal-actions button:hover { background: #454e60; }
+</style>
+</head>
+<body>
+
+  <h1>Tiny Swords — Free Pack Mosaic</h1>
+  <div class="tagline">Units across all 5 colors</div>
+
+  <div class="controls">
+    <label>Speed
+      <input type="range" id="speed" min="0.1" max="2" step="0.1" value="0.6">
+      <span id="speedVal">0.6s</span>
+    </label>
+    <label>Scale
+      <input type="range" id="scale" min="0.5" max="4" step="0.5" value="1">
+      <span id="scaleVal">1x</span>
+    </label>
+    <span class="hint">hover to pause · click to zoom</span>
+  </div>
+
+  <div id="app"></div>
+
+  <div class="modal" id="modal">
+    <div class="modal-box">
+      <div class="label" id="modalLabel"></div>
+      <div class="modal-stage" id="modalStage"></div>
+      <div class="modal-actions">
+        <button id="modalToggle">Pause</button>
+        <button id="modalClose">Close</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const CONFIG = { speed: 0.6, scale: 1, frameHeight: 192 };
+
+  // Path prefix is RELATIVE to this html file: ../Tiny Swords (Free Pack)/...
+  // Using relative paths means renaming the parent folder never breaks it.
+  const PACK_PREFIX = "../Tiny Swords (Free Pack)/";
+
+  const UNITS = {
+    "Warrior": {
+      "Run": "Warrior_Run", "Idle": "Warrior_Idle", "Guard": "Warrior_Guard",
+      "Attack 1": "Warrior_Attack1", "Attack 2": "Warrior_Attack2"
+    },
+    "Archer": {
+      "Run": "Archer_Run", "Idle": "Archer_Idle", "Shoot": "Archer_Shoot"
+    },
+    "Lancer": {
+      "Run": "Lancer_Run", "Idle": "Lancer_Idle",
+      "Right Attack": "Lancer_Right_Attack", "Right Defence": "Lancer_Right_Defence",
+      "Down Attack": "Lancer_Down_Attack", "Down Defence": "Lancer_Down_Defence",
+      "Up Attack": "Lancer_Up_Attack", "Up Defence": "Lancer_Up_Defence",
+      "UpRight Attack": "Lancer_UpRight_Attack", "UpRight Defence": "Lancer_UpRight_Defence",
+      "DownRight Attack": "Lancer_DownRight_Attack", "DownRight Defence": "Lancer_DownRight_Defence"
+    },
+    "Monk": {
+      "Run": "Run", "Idle": "Idle", "Heal": "Heal"
+    },
+    "Pawn": {
+      "Run": "Pawn_Run", "Idle": "Pawn_Idle",
+      "Run Wood": "Pawn_Run Wood", "Run Gold": "Pawn_Run Gold", "Run Meat": "Pawn_Run Meat",
+      "Run Axe": "Pawn_Run Axe", "Run Pickaxe": "Pawn_Run Pickaxe", "Run Knife": "Pawn_Run Knife",
+      "Run Hammer": "Pawn_Run Hammer",
+      "Interact Axe": "Pawn_Interact Axe", "Interact Hammer": "Pawn_Interact Hammer",
+      "Interact Pickaxe": "Pawn_Interact Pickaxe", "Interact Knife": "Pawn_Interact Knife"
+    }
+  };
+
+  const COLOR_PACKS = ["Blue", "Red", "Yellow", "Black", "Purple"];
+
+  const app = document.getElementById('app');
+
+  function assetPath(color, unitName, fileName) {
+    const colorDir = `${PACK_PREFIX}Units/${color} Units/`;
+    return `${colorDir}${unitName}/${fileName}.png`;
+  }
+
+  function buildSprite(path, scale) {
+    const sprite = document.createElement('div');
+    sprite.className = 'sprite-container';
+    const img = new Image();
+    img.src = path;
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const frames = Math.round(w / h);
+      const size = Math.round(h * scale);
+      sprite.style.width = size + 'px';
+      sprite.style.height = size + 'px';
+      sprite.style.backgroundImage = `url("${path}")`;
+      sprite.style.backgroundSize = (w * scale) + 'px ' + (h * scale) + 'px';
+      if (frames > 1) {
+        const animName = `anim_${Math.random().toString(36).substr(2, 9)}`;
+        document.styleSheets[0].insertRule(`
+          @keyframes ${animName} { to { background-position: ${-(w - h) * scale}px 0; } }
+        `, document.styleSheets[0].cssRules.length);
+        sprite.style.animation = `${animName} ${CONFIG.speed}s steps(${frames - 1}) infinite`;
+      }
+    };
+    return sprite;
+  }
+
+  const allCards = [];
+  function setSprite(card, path, scale) {
+    const old = card.querySelector('.sprite-container');
+    if (old) old.remove();
+    card.prepend(buildSprite(path, scale));
+  }
+
+  // Build groups
+  COLOR_PACKS.forEach(color => {
+    const section = document.createElement('div');
+    section.className = 'group-section';
+    const t = document.createElement('div');
+    t.className = 'group-title';
+    t.textContent = `${color} Units`;
+    section.appendChild(t);
+
+    const grid = document.createElement('div');
+    grid.className = 'mosaic-grid';
+
+    for (const [unitName, anims] of Object.entries(UNITS)) {
+      for (const [label, file] of Object.entries(anims)) {
+        const path = assetPath(color, unitName, file);
+        const card = document.createElement('div');
+        card.className = 'anim-card';
+        const lab = document.createElement('div');
+        lab.className = 'label';
+        lab.innerHTML = `<strong>${unitName}</strong>${label}`;
+        card.appendChild(lab);
+        card.addEventListener('click', () => openModal(unitName, label, path));
+        allCards.push({ card, path });
+        setSprite(card, path, CONFIG.scale);
+        grid.appendChild(card);
+      }
+    }
+    section.appendChild(grid);
+    app.appendChild(section);
+  });
+
+  // Hover pause via Web Animations API (inline shorthand beats CSS rules)
+  app.addEventListener('mouseover', e => {
+    const s = e.target.closest('.anim-card')?.querySelector('.sprite-container');
+    if (s) s.getAnimations().forEach(a => a.pause());
+  });
+  app.addEventListener('mouseout', e => {
+    const s = e.target.closest('.anim-card')?.querySelector('.sprite-container');
+    if (s) s.getAnimations().forEach(a => a.play());
+  });
+
+  // Controls
+  const speedInput = document.getElementById('speed');
+  const speedVal = document.getElementById('speedVal');
+  const scaleInput = document.getElementById('scale');
+  const scaleVal = document.getElementById('scaleVal');
+
+  speedInput.addEventListener('input', () => {
+    CONFIG.speed = speedInput.value;
+    speedVal.textContent = CONFIG.speed + 's';
+    document.querySelectorAll('.sprite-container, .modal-stage').forEach(el => {
+      el.style.animationDuration = CONFIG.speed + 's';
+    });
+  });
+  scaleInput.addEventListener('input', () => {
+    const s = Number(scaleInput.value);
+    CONFIG.scale = s;
+    scaleVal.textContent = s + 'x';
+    allCards.forEach(({ card, path }) => setSprite(card, path, s));
+  });
+
+  // Modal
+  const modal = document.getElementById('modal');
+  const modalLabel = document.getElementById('modalLabel');
+  const modalStage = document.getElementById('modalStage');
+  const modalToggle = document.getElementById('modalToggle');
+  const modalClose = document.getElementById('modalClose');
+
+  function openModal(unitName, label, path) {
+    modalLabel.innerHTML = `<strong>${unitName}</strong>${label}`;
+    modalStage.innerHTML = '';
+    modalToggle.textContent = 'Pause';
+    const img = new Image();
+    img.src = path;
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const frames = Math.round(w / h);
+      const scale = 3;
+      modalStage.style.width = h * scale + 'px';
+      modalStage.style.height = h * scale + 'px';
+      modalStage.style.backgroundImage = `url("${path}")`;
+      modalStage.style.backgroundSize = w * scale + 'px ' + h * scale + 'px';
+      if (frames > 1) {
+        const animName = `modal_${Math.random().toString(36).substr(2, 9)}`;
+        document.styleSheets[0].insertRule(`
+          @keyframes ${animName} { to { background-position: ${-(w - h) * scale}px 0; } }
+        `, document.styleSheets[0].cssRules.length);
+        modalStage.style.animation = `${animName} ${CONFIG.speed}s steps(${frames - 1}) infinite`;
+      }
+    };
+    modal.classList.add('open');
+  }
+
+  modalToggle.addEventListener('click', () => {
+    const anims = modalStage.getAnimations();
+    const paused = anims.every(a => a.playState === 'paused');
+    if (paused) { anims.forEach(a => a.play()); modalToggle.textContent = 'Pause'; }
+    else { anims.forEach(a => a.pause()); modalToggle.textContent = 'Play'; }
+  });
+  modalClose.addEventListener('click', () => modal.classList.remove('open'));
+  modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
+</script>
+</body>
+</html>

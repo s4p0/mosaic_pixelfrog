@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tiny Swords — Enemy Pack Mosaic</title>
+<style>
+  :root {
+    --bg-color: #171a21;
+    --card-bg: #232833;
+    --text-color: #e8e8e8;
+    --accent: #4a5366;
+  }
+
+  body {
+    margin: 0;
+    padding: 30px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-family: system-ui, sans-serif;
+  }
+
+  h1 { text-align: center; margin: 0 0 8px; font-weight: 300; }
+  .tagline { text-align: center; color: #9aa3b2; font-size: 13px; margin-bottom: 8px; }
+
+  .controls {
+    display: flex;
+    gap: 22px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 30px;
+    font-size: 13px;
+  }
+  .controls label { display: flex; align-items: center; gap: 6px; }
+  .controls input[type="range"] { width: 140px; }
+  .controls span { min-width: 40px; color: #9aa3b2; }
+  .hint { color: #6b7a93; }
+
+  .group-section { margin-bottom: 50px; }
+  .group-title {
+    font-size: 22px;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+    color: #9aa3b2;
+  }
+
+  .mosaic-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+  }
+
+  .anim-card {
+    background: var(--card-bg);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: zoom-in;
+    transition: transform 0.15s, border-color 0.15s;
+  }
+  .anim-card:hover { transform: translateY(-3px); border-color: #6b7a93; }
+
+  .sprite-container {
+    width: 192px;
+    height: 192px;
+    margin-bottom: 10px;
+    image-rendering: pixelated;
+    background-repeat: no-repeat;
+    background-position: 0 0;
+  }
+
+  .label { font-size: 12px; color: #9aa3b2; text-align: center; }
+  .label strong { color: var(--text-color); display: block; margin-bottom: 2px; }
+
+  .modal {
+    position: fixed; inset: 0; background: rgba(10,12,16,0.85);
+    display: none; align-items: center; justify-content: center; z-index: 10;
+  }
+  .modal.open { display: flex; }
+  .modal-box {
+    background: var(--card-bg); border: 1px solid var(--accent);
+    border-radius: 10px; padding: 24px; text-align: center; max-width: 90vw;
+  }
+  .modal-box .label { margin-bottom: 16px; }
+  .modal-stage {
+    image-rendering: pixelated; background-repeat: no-repeat;
+    background-position: 0 0; margin: 0 auto 16px; cursor: pointer;
+  }
+  .modal-actions button {
+    background: #39404f; color: inherit; border: 1px solid #4a5366;
+    border-radius: 6px; padding: 6px 16px; cursor: pointer; font-size: 13px; margin: 0 4px;
+  }
+  .modal-actions button:hover { background: #454e60; }
+</style>
+</head>
+<body>
+
+  <h1>Tiny Swords — Enemy Pack Mosaic</h1>
+  <div class="tagline">Enemies, bosses &amp; unique units (incl. Extra)</div>
+
+  <div class="controls">
+    <label>Speed
+      <input type="range" id="speed" min="0.1" max="2" step="0.1" value="0.6">
+      <span id="speedVal">0.6s</span>
+    </label>
+    <label>Scale
+      <input type="range" id="scale" min="0.5" max="4" step="0.5" value="1">
+      <span id="scaleVal">1x</span>
+    </label>
+    <span class="hint">hover to pause · click to zoom</span>
+  </div>
+
+  <div id="app"></div>
+
+  <div class="modal" id="modal">
+    <div class="modal-box">
+      <div class="label" id="modalLabel"></div>
+      <div class="modal-stage" id="modalStage"></div>
+      <div class="modal-actions">
+        <button id="modalToggle">Pause</button>
+        <button id="modalClose">Close</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const CONFIG = { speed: 0.6, scale: 1, frameHeight: 192 };
+
+  // RELATIVE prefix to this html file (../Tiny Swords (Enemy Pack)/...).
+  const PACK_PREFIX = "../Tiny Swords (Enemy Pack)/";
+
+  // top-level enemies
+  const ENEMIES = {
+    "Troll": { "Walk": "Troll_Walk", "Idle": "Troll_Idle", "Attack": "Troll_Attack", "Recovery": "Troll_Recovery" },
+    "Lizard": { "Run": "Lizard_Run", "Idle": "Lizard_Idle", "Attack": "Lizard_Attack" },
+    "Minotaur": { "Walk": "Minotaur_Walk", "Idle": "Minotaur_Idle", "Attack": "Minotaur_Attack" },
+    "Slingshot Gnome": { "Run": "Slingshot Gnome_Run", "Idle": "Slingshot Gnome_Idle", "Shoot": "Slingshot Gnome_Shoot" },
+    "Torch Goblin": { "Run": "Torch Goblin_Run", "Idle": "Torch Goblin_Idle", "Attack": "Torch Goblin_Attack" },
+    "Spear Goblin": { "Run": "Spear Goblin_Run", "Idle": "Spear Goblin_Idle", "Attack": "Spear Goblin_Attack Fast" },
+    "Bomb Fish": { "Run": "Bomb Fish_Run", "Idle": "Bomb Fish_Idle", "Shoot": "Bomb Fish_Shoot" },
+    "Skull": { "Run": "Skull_Run", "Idle": "Skull_Idle", "Attack": "Skull_Attack" },
+    "Thief": { "Run": "Thief_Run", "Idle": "Thief_Idle", "Attack": "Thief_Attack" },
+    "Snake": { "Run": "Snake_Run", "Idle": "Snake_Idle", "Attack": "Snake_Attack" },
+    "Bear": { "Run": "Bear_Run", "Idle": "Bear_Idle", "Attack": "Bear_Attack" },
+    "Turtle": { "Walk": "Turtle_Walk", "Idle": "Turtle_Idle", "Attack": "Turtle_Attack" },
+    "Panda": { "Run": "Panda_Run", "Idle": "Panda_Idle", "Attack": "Panda_Attack" },
+    "Gnome": { "Run": "Gnome_Run", "Idle": "Gnome_Idle", "Attack": "Gnome_Attack" },
+    "Gnoll": { "Walk": "Gnoll_Walk", "Idle": "Gnoll_Idle", "Throw": "Gnoll_Throw" },
+    "Spider": { "Run": "Spider_Run", "Idle": "Spider_Idle", "Attack": "Spider_Attack" },
+    "Hex Shaman": { "Run": "Hex Shaman_Run", "Idle": "Hex Shaman_Idle", "Attack": "Hex Shaman_Attack", "Explosion": "Hex Shaman_Explosion" },
+    "Harpoon Shark": { "Run": "Harpoon Shark_Run", "Idle": "Harpoon Shark_Idle", "Throw": "Harpoon Shark_Throw" },
+    "Paddle Shark": { "Run": "Paddle Shark_Run", "Idle": "Paddle Shark_Idle", "Attack": "Paddle Shark_Attack" }
+  };
+
+  // Extra/ units & vehicles (deeper nesting).
+  const EXTRA = {
+    "Pig Rider": { dir: "Pig Rider Spear Goblin", anims: { "Run": "Pig Rider_Run", "Idle": "Pig Rider_Idle", "Attack": "Pig Rider_Attack" } },
+    "Pig": { dir: "Pig", anims: { "Run": "Pig_Run", "Idle": "Pig_Idle" } },
+    "Skull Guard": { dir: "Skull Guard", anims: { "Guard": "Skull_Guard" } },
+    "Minotaur Guard": { dir: "Minotaur Guard", anims: { "Guard": "Minotaur_Guard" } },
+    "Turtle Guard": { dir: "Turtle Guard", anims: { "Guard In": "Turtle_Guard_In", "Guard Out": "Turtle_Guard_Out" } },
+    "Panda Guard": { dir: "Panda Guard", anims: { "Guard": "Panda_Guard" } },
+    "Spear Goblin Strong": { dir: "Spear Goblin Strong Attack", anims: { "Attack Strong": "Spear Goblin_Attack Strong" } },
+    "Hex Shaman Spells": { dir: "Hex Shaman Transformation Spell", anims: { "Transformation": "Hex Shaman_Transformation Spell", "Explosion": "Hex Shaman_Explosion Spell" } },
+    "Boat": { dir: "Boat", anims: { "Idle": "Boat_Idle", "Paddle Row": "Paddle Shark_Row" } },
+    "Seahorse Boat": { dir: "Seahorse Boat", anims: { "Idle": "Seahorse Boat_Idle", "Bomb Fish": "Seahorse Boat_Bomb Fish", "Harpoon Shark": "Seahorse Boat_Harpoon Shark", "Paddle Shark": "Seahorse Boat_Paddle Shark" } },
+    "Cannon": { dir: "Cannon", anims: { "Right": "Cannon_Right", "Up": "Cannon_Up", "Down": "Cannon_Down", "UpRight": "Cannon_UpRight", "DownRight": "Cannon_DownRight" } }
+  };
+
+  const app = document.getElementById('app');
+
+  function assetPath(baseDir, subDir, fileName) {
+    return `${PACK_PREFIX}${baseDir}${subDir}/${fileName}.png`;
+  }
+
+  function buildSprite(path, scale) {
+    const sprite = document.createElement('div');
+    sprite.className = 'sprite-container';
+    const img = new Image();
+    img.src = path;
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const frames = Math.round(w / h);
+      const size = Math.round(h * scale);
+      sprite.style.width = size + 'px';
+      sprite.style.height = size + 'px';
+      sprite.style.backgroundImage = `url("${path}")`;
+      sprite.style.backgroundSize = (w * scale) + 'px ' + (h * scale) + 'px';
+      if (frames > 1) {
+        const animName = `anim_${Math.random().toString(36).substr(2, 9)}`;
+        document.styleSheets[0].insertRule(`
+          @keyframes ${animName} { to { background-position: ${-(w - h) * scale}px 0; } }
+        `, document.styleSheets[0].cssRules.length);
+        sprite.style.animation = `${animName} ${CONFIG.speed}s steps(${frames - 1}) infinite`;
+      }
+    };
+    return sprite;
+  }
+
+  const allCards = [];
+  function setSprite(card, path, scale) {
+    const old = card.querySelector('.sprite-container');
+    if (old) old.remove();
+    card.prepend(buildSprite(path, scale));
+  }
+
+  function addGroup(title, baseDir, unitsMap) {
+    const section = document.createElement('div');
+    section.className = 'group-section';
+    const t = document.createElement('div');
+    t.className = 'group-title';
+    t.textContent = title;
+    section.appendChild(t);
+
+    const grid = document.createElement('div');
+    grid.className = 'mosaic-grid';
+
+    for (const [unitName, unitDef] of Object.entries(unitsMap)) {
+      const anims = unitDef.anims || unitDef;
+      const dir = unitDef.dir || unitName;
+      for (const [label, file] of Object.entries(anims)) {
+        const path = assetPath(baseDir, dir, file);
+        const card = document.createElement('div');
+        card.className = 'anim-card';
+        const lab = document.createElement('div');
+        lab.className = 'label';
+        lab.innerHTML = `<strong>${unitName}</strong>${label}`;
+        card.appendChild(lab);
+        card.addEventListener('click', () => openModal(unitName, label, path));
+        allCards.push({ card, path });
+        setSprite(card, path, CONFIG.scale);
+        grid.appendChild(card);
+      }
+    }
+    section.appendChild(grid);
+    app.appendChild(section);
+  }
+
+  addGroup("Enemies", "Enemy Pack/", ENEMIES);
+  addGroup("Extra", "Enemy Pack/Extra/", EXTRA);
+
+  // Hover pause via Web Animations API
+  app.addEventListener('mouseover', e => {
+    const s = e.target.closest('.anim-card')?.querySelector('.sprite-container');
+    if (s) s.getAnimations().forEach(a => a.pause());
+  });
+  app.addEventListener('mouseout', e => {
+    const s = e.target.closest('.anim-card')?.querySelector('.sprite-container');
+    if (s) s.getAnimations().forEach(a => a.play());
+  });
+
+  // Controls
+  const speedInput = document.getElementById('speed');
+  const speedVal = document.getElementById('speedVal');
+  const scaleInput = document.getElementById('scale');
+  const scaleVal = document.getElementById('scaleVal');
+
+  speedInput.addEventListener('input', () => {
+    CONFIG.speed = speedInput.value;
+    speedVal.textContent = CONFIG.speed + 's';
+    document.querySelectorAll('.sprite-container, .modal-stage').forEach(el => {
+      el.style.animationDuration = CONFIG.speed + 's';
+    });
+  });
+  scaleInput.addEventListener('input', () => {
+    const s = Number(scaleInput.value);
+    CONFIG.scale = s;
+    scaleVal.textContent = s + 'x';
+    allCards.forEach(({ card, path }) => setSprite(card, path, s));
+  });
+
+  // Modal
+  const modal = document.getElementById('modal');
+  const modalLabel = document.getElementById('modalLabel');
+  const modalStage = document.getElementById('modalStage');
+  const modalToggle = document.getElementById('modalToggle');
+  const modalClose = document.getElementById('modalClose');
+
+  function openModal(unitName, label, path) {
+    modalLabel.innerHTML = `<strong>${unitName}</strong>${label}`;
+    modalStage.innerHTML = '';
+    modalToggle.textContent = 'Pause';
+    const img = new Image();
+    img.src = path;
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      const frames = Math.round(w / h);
+      const scale = 3;
+      modalStage.style.width = h * scale + 'px';
+      modalStage.style.height = h * scale + 'px';
+      modalStage.style.backgroundImage = `url("${path}")`;
+      modalStage.style.backgroundSize = w * scale + 'px ' + h * scale + 'px';
+      if (frames > 1) {
+        const animName = `modal_${Math.random().toString(36).substr(2, 9)}`;
+        document.styleSheets[0].insertRule(`
+          @keyframes ${animName} { to { background-position: ${-(w - h) * scale}px 0; } }
+        `, document.styleSheets[0].cssRules.length);
+        modalStage.style.animation = `${animName} ${CONFIG.speed}s steps(${frames - 1}) infinite`;
+      }
+    };
+    modal.classList.add('open');
+  }
+
+  modalToggle.addEventListener('click', () => {
+    const anims = modalStage.getAnimations();
+    const paused = anims.every(a => a.playState === 'paused');
+    if (paused) { anims.forEach(a => a.play()); modalToggle.textContent = 'Pause'; }
+    else { anims.forEach(a => a.pause()); modalToggle.textContent = 'Play'; }
+  });
+  modalClose.addEventListener('click', () => modal.classList.remove('open'));
+  modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
+</script>
+</body>
+</html>
